@@ -1,0 +1,10 @@
+environment    = "stage"
+subnet_cidr    = "10.10.20.0/24"
+vm_name        = "stage-node"
+vm_count       = 2
+image          = "alpine:3.18"
+cores          = 2
+memory_mb      = 1024
+disk_size_gb   = 20
+ssh_host_port  = 2230
+ssh_password   = "stagepass"

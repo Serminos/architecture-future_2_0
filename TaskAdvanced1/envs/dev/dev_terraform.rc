@@ -1,9 +1,0 @@
-provider_installation {
-  filesystem_mirror {
-    path    = "D:/terraform_1.15.8_windows_amd64/plugins"
-    include = ["registry.terraform.io/*/*"]
-  }
-  direct {
-    exclude = ["registry.terraform.io/*/*"]
-  }
-}
