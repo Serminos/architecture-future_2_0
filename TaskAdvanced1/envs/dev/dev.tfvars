@@ -1,0 +1,11 @@
+environment    = "dev"
+subnet_cidr    = "10.10.10.0/24"
+vm_name        = "dev-node"
+vm_count       = 1
+image          = "alpine:3.18"
+cores          = 1
+memory_mb      = 512
+disk_size_gb   = 10
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMZtfTD8uo9RL+rtBgxvSmV2SAPvMJD67q3tEuFqFi08 future20-demo"
+ssh_host_port  = 2220
+ssh_password   = "testpass"
