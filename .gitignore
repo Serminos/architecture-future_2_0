@@ -23,6 +23,7 @@
 hs_err_pid*
 replay_pid*
 /Task1Advanced/envs/*/.terraform/
+/Task2Advanced/envs/*/.terraform/
 *.hcl
 *.tfstate
 *.backup
