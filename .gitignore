@@ -27,3 +27,4 @@ replay_pid*
 *.hcl
 *.tfstate
 *.backup
+*.bkp
