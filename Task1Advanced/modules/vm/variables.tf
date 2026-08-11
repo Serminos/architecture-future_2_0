@@ -42,8 +42,8 @@ variable "subnet_id" {
   type        = string
 }
 
-variable "ssh_password" {
-  description = "Пароль для пользователя root в контейнере"
+variable "ssh_public_key" {
+  description = "Публичный SSH-ключ для доступа (root)"
   type        = string
   sensitive   = true
 }

@@ -22,8 +22,8 @@ module "vm" {
   memory_mb      = var.memory_mb
   disk_size_gb   = var.disk_size_gb
   subnet_id      = docker_network.subnet.name
+  ssh_public_key = var.ssh_public_key
   ssh_host_port  = var.ssh_host_port
-  ssh_password   = var.ssh_password
 
   labels = {
     environment = var.environment

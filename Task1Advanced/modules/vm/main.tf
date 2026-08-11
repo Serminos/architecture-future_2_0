@@ -39,9 +39,13 @@ resource "docker_container" "vm" {
     container_path = var.disk_mount_path
   }
 
+  env = [
+    "SSH_PUBLIC_KEY=${var.ssh_public_key}",
+  ]
+
   command = [
     "/bin/sh", "-c",
-    "apk add --no-cache openssh-server && ssh-keygen -A && echo 'root:${var.ssh_password}' | chpasswd && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && /usr/sbin/sshd && tail -f /dev/null"
+    "apk add --no-cache openssh-server && ssh-keygen -A && mkdir -p /root/.ssh && chmod 700 /root/.ssh && printf '%s' \"$SSH_PUBLIC_KEY\" > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys && sed -i 's/#PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config && /usr/sbin/sshd -D"
   ]
 
   ports {

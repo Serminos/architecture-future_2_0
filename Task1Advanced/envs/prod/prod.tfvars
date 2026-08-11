@@ -7,4 +7,3 @@ cores          = 4
 memory_mb      = 2048
 disk_size_gb   = 40
 ssh_host_port  = 2240
-ssh_password   = "prodpass"
