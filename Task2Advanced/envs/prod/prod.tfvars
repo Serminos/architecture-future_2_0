@@ -1,0 +1,10 @@
+environment    = "prod"
+subnet_cidr    = "10.10.30.0/24"
+vm_name        = "prod-node"
+vm_count       = 3
+image          = "alpine:3.18"
+cores          = 4
+memory_mb      = 2048
+disk_size_gb   = 40
+ssh_host_port  = 2240
+ssh_password   = "prodpass"

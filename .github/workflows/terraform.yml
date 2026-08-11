@@ -1,0 +1,355 @@
+name: Terraform CI/CD
+
+on:
+  pull_request:
+    paths:
+      - 'Task2Advanced/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'Task2Advanced/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Окружение'
+        required: true
+        type: choice
+        options: [dev, stage, prod]
+      action:
+        description: 'Действие'
+        required: true
+        type: choice
+        options: [plan, apply]
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER=admin \
+            -e MINIO_ROOT_PASSWORD=admin123 \
+            quay.io/minio/minio server /data --console-address ":9001"
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+
+      - name: Create MinIO bucket
+        run: |
+          # Ждём готовности MinIO
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+          
+          # Создаём alias и bucket в одном контейнере с переопределённым entrypoint
+          docker run --rm --network host --entrypoint /bin/sh minio/mc -c "
+            mc alias set myminio http://localhost:9000 admin admin123 &&
+            mc mb myminio/terraform-state
+          "
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.1
+
+      - name: Plan Dev
+        working-directory: Task2Advanced/envs/dev
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform init \
+            -backend-config="endpoint=http://localhost:9000" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="access_key=admin" \
+            -backend-config="secret_key=admin123"
+          terraform plan -var-file=dev.tfvars \
+            -var="minio_endpoint=http://localhost:9000" \
+            -var="minio_bucket=terraform-state" \
+            -var="minio_access_key=admin" \
+            -var="minio_secret_key=admin123" \
+            -var="ssh_password=${{ secrets.SSH_PASSWORD }}"
+
+      - name: Plan Stage
+        working-directory: Task2Advanced/envs/stage
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform init \
+            -backend-config="endpoint=http://localhost:9000" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="access_key=admin" \
+            -backend-config="secret_key=admin123"
+          terraform plan -var-file=stage.tfvars \
+            -var="minio_endpoint=http://localhost:9000" \
+            -var="minio_bucket=terraform-state" \
+            -var="minio_access_key=admin" \
+            -var="minio_secret_key=admin123" \
+            -var="ssh_password=${{ secrets.SSH_PASSWORD }}"
+
+      - name: Plan Prod
+        working-directory: Task2Advanced/envs/prod
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform init \
+            -backend-config="endpoint=http://localhost:9000" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="access_key=admin" \
+            -backend-config="secret_key=admin123"
+          terraform plan -var-file=prod.tfvars \
+            -var="minio_endpoint=http://localhost:9000" \
+            -var="minio_bucket=terraform-state" \
+            -var="minio_access_key=admin" \
+            -var="minio_secret_key=admin123" \
+            -var="ssh_password=${{ secrets.SSH_PASSWORD }}"
+
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER=admin \
+            -e MINIO_ROOT_PASSWORD=admin123 \
+            quay.io/minio/minio server /data --console-address ":9001"
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+
+      - name: Create MinIO bucket
+        run: |
+          # Ждём готовности MinIO
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+          
+          # Создаём alias и bucket в одном контейнере с переопределённым entrypoint
+          docker run --rm --network host --entrypoint /bin/sh minio/mc -c "
+            mc alias set myminio http://localhost:9000 admin admin123 &&
+            mc mb myminio/terraform-state
+          "
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.1
+
+      - name: Apply Dev
+        working-directory: Task2Advanced/envs/dev
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform init \
+            -backend-config="endpoint=http://localhost:9000" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="access_key=admin" \
+            -backend-config="secret_key=admin123"
+          terraform apply -auto-approve -var-file=dev.tfvars \
+            -var="minio_endpoint=http://localhost:9000" \
+            -var="minio_bucket=terraform-state" \
+            -var="minio_access_key=admin" \
+            -var="minio_secret_key=admin123" \
+            -var="ssh_password=${{ secrets.SSH_PASSWORD }}"
+
+      - name: Apply Stage
+        working-directory: Task2Advanced/envs/stage
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform init \
+            -backend-config="endpoint=http://localhost:9000" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="access_key=admin" \
+            -backend-config="secret_key=admin123"
+          terraform apply -auto-approve -var-file=stage.tfvars \
+            -var="minio_endpoint=http://localhost:9000" \
+            -var="minio_bucket=terraform-state" \
+            -var="minio_access_key=admin" \
+            -var="minio_secret_key=admin123" \
+            -var="ssh_password=${{ secrets.SSH_PASSWORD }}"
+
+      - name: Apply Prod
+        working-directory: Task2Advanced/envs/prod
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform init \
+            -backend-config="endpoint=http://localhost:9000" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="access_key=admin" \
+            -backend-config="secret_key=admin123"
+          terraform apply -auto-approve -var-file=prod.tfvars \
+            -var="minio_endpoint=http://localhost:9000" \
+            -var="minio_bucket=terraform-state" \
+            -var="minio_access_key=admin" \
+            -var="minio_secret_key=admin123" \
+            -var="ssh_password=${{ secrets.SSH_PASSWORD }}"
+
+      - name: Download all states from MinIO
+        if: success()
+        run: |
+          curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          ./mc alias set myminio http://localhost:9000 admin admin123
+          mkdir -p states
+          ./mc cp myminio/terraform-state/dev/terraform.tfstate ./states/dev.tfstate
+          ./mc cp myminio/terraform-state/stage/terraform.tfstate ./states/stage.tfstate
+          ./mc cp myminio/terraform-state/prod/terraform.tfstate ./states/prod.tfstate
+
+      - name: Upload states as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-states
+          path: ./states/
+
+  manual-deploy:
+    name: Manual Deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER=admin \
+            -e MINIO_ROOT_PASSWORD=admin123 \
+            quay.io/minio/minio server /data --console-address ":9001"
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+
+      - name: Create MinIO bucket
+        run: |
+          # Убедимся, что MinIO принимает соединения
+          for i in {1..30}; do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO..."
+            sleep 2
+          done
+          
+          # Все операции с mc в одном контейнере
+          docker run --rm --network host minio/mc sh -c "
+            mc alias set myminio http://localhost:9000 admin admin123 &&
+            mc mb myminio/terraform-state &&
+            echo 'Bucket exists. Contents:' &&
+            mc ls myminio/terraform-state
+          "
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.1
+
+      - name: Terraform Init
+        working-directory: Task2Advanced/envs/${{ github.event.inputs.environment }}
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform init \
+            -backend-config="endpoint=http://localhost:9000" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="access_key=admin" \
+            -backend-config="secret_key=admin123"
+
+      - name: Terraform Plan
+        if: github.event.inputs.action == 'plan'
+        working-directory: Task2Advanced/envs/${{ github.event.inputs.environment }}
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform plan -var-file=${{ github.event.inputs.environment }}.tfvars \
+            -var="minio_endpoint=http://localhost:9000" \
+            -var="minio_bucket=terraform-state" \
+            -var="minio_access_key=admin" \
+            -var="minio_secret_key=admin123" \
+            -var="ssh_password=${{ secrets.SSH_PASSWORD }}"
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        working-directory: Task2Advanced/envs/${{ github.event.inputs.environment }}
+        env:
+          AWS_ACCESS_KEY_ID: admin
+          AWS_SECRET_ACCESS_KEY: admin123
+          AWS_DEFAULT_REGION: eu-central-1
+        run: |
+          terraform apply -auto-approve -var-file=${{ github.event.inputs.environment }}.tfvars \
+            -var="minio_endpoint=http://localhost:9000" \
+            -var="minio_bucket=terraform-state" \
+            -var="minio_access_key=admin" \
+            -var="minio_secret_key=admin123" \
+            -var="ssh_password=${{ secrets.SSH_PASSWORD }}"
+
+      - name: Download state for selected environment
+        if: success()
+        run: |
+          curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          ./mc alias set myminio http://localhost:9000 admin admin123
+          mkdir -p states
+          ./mc cp myminio/terraform-state/${{ github.event.inputs.environment }}/terraform.tfstate ./states/
+
+      - name: Upload states as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-state-${{ github.event.inputs.environment }}
+          path: ./states/

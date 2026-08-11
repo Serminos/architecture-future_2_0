@@ -1,0 +1,10 @@
+environment    = "dev"
+subnet_cidr    = "10.10.10.0/24"
+vm_name        = "dev-node"
+vm_count       = 1
+image          = "alpine:3.18"
+cores          = 1
+memory_mb      = 512
+disk_size_gb   = 10
+ssh_host_port  = 2220
+ssh_password   = "testpass"
